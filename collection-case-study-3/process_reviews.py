@@ -1,6 +1,8 @@
 import argparse
 import json
-import os
+import pandas as pd
+from jsonschema import validate, ValidationError
+
 
 def read_jsonl_file(file_path):
     """Reads a JSONL file and returns a list of dictionaries."""
@@ -8,7 +10,7 @@ def read_jsonl_file(file_path):
     with open(file_path, 'r', encoding='utf-8') as file:
         for line in file:
             data.append(json.loads(line.strip()))
-    return data[0:2]
+    return data
 
 def write_jsonl_file(data, file_path):
     """Writes a list of dictionaries to a JSONL file."""
@@ -16,51 +18,64 @@ def write_jsonl_file(data, file_path):
         for item in data:
             file.write(json.dumps(item) + '\n')
 
-# def filter_reviews(reviews, inappropriate_words):
-#     """Filters reviews based on inappropriate words."""
-#     filtered_reviews = []
-#     for review in reviews:
-#         if not any(word in review['text'].lower() for word in inappropriate_words):
-#             filtered_reviews.append(review)
-#     return filtered_reviews
-
-# def compute_aggregations(reviews):
-#     """Compute aggregations from reviews (example: count of reviews)."""
-#     aggregation_result = {
-#         'total_reviews': len(reviews)
-#         # You can add more aggregations here based on your requirements
-#     }
-#     return aggregation_result
+def validate_schema(data, schema):
+    # Collect valid rows
+    valid_data = []
+    invalid_data = []
+    for record in data:
+        try:
+            validate(instance=record, schema=schema)
+            valid_data.append(record)  # Add valid record to the list
+        except ValidationError as e:
+            invalid_data.append(record)  # Ignore invalid records
+    print(invalid_data)
+    return pd.DataFrame(valid_data)
 
 def main():
+    #### argument parser
     parser = argparse.ArgumentParser(description='Filter and aggregate reviews from JSONL file.')
     parser.add_argument('--input', type=str, required=True, help='Path to input JSONL file containing reviews')
-    # parser.add_argument('--inappropriate_words', type=str, required=True, help='Path to text file with inappropriate words')
+    parser.add_argument('--inappropriate_words', type=str, required=True, help='Path to text file with inappropriate words')
     parser.add_argument('--output', type=str, required=True, help='Path to output JSONL file for filtered reviews')
     # parser.add_argument('--aggregations', type=str, required=True, help='Path to output JSONL file for aggregations')
     args = parser.parse_args()
 
     # Read reviews from input JSONL file
-    reviews = read_jsonl_file(f"data\{args.input}")
+    file_path = "data\\"
 
-    # Read inappropriate words from text file
-    # with open(args.inappropriate_words, 'r', encoding='utf-8') as words_file:
-    #     inappropriate_words = set(word.strip().lower() for word in words_file.readlines() if word.strip())
+    #load reviews and schema file
+    reviews = read_jsonl_file(file_path+args.input)
 
-    # Filter reviews based on inappropriate words
-    # filtered_reviews = filter_reviews(reviews, inappropriate_words)
-    filtered_reviews = reviews
+    with open('schemas/review.json', 'r') as file:
+        schema = json.load(file)
+
+    # Load the jsonl file into a pandas DataFrame
+    # df_review = pd.read_json(file_path+args.input, lines=True)
+    df_review = validate_schema(reviews, schema)
+    df_review['publishedAt'] = pd.to_datetime(df_review['publishedAt'],format='mixed', utc=True)
+
+
+    # load inappropriate words
+    df_inapt_word = pd.read_csv(file_path+args.inappropriate_words
+                                , encoding='utf-8', 
+                                delimiter='\t',
+                                header=None,
+                                names =["inapt_words"])  # Adjust the delimiter if necessary
+
+
+    # Display the DataFrame
+    print(df_review)
+
+    #process the reviews   
+
+
+    # filtered_reviews = reviews
+    # print(filtered_reviews)
+
     # Write filtered reviews to output JSONL file
-    write_jsonl_file(filtered_reviews, f"data\{args.output}")
+    # write_jsonl_file(filtered_reviews, f"data\{args.output}")
 
-    # Compute aggregations
-    # aggregations = compute_aggregations(filtered_reviews)
-
-    # Write aggregations to aggregations JSONL file
-    # write_jsonl_file([aggregations], args.aggregations)
-
-    print(f"Filtered reviews written to {args.output}")
-    # print(f"Aggregations written to {args.aggregations}")
+    # print(f"Filtered reviews written to {args.output}")
 
 if __name__ == '__main__':
     main()
