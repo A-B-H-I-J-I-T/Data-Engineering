@@ -41,7 +41,7 @@ def main():
     args = parser.parse_args()
 
     # Read reviews from input JSONL file
-    reviews = read_jsonl_file(f"data\input_reviews\{args.input}")
+    reviews = read_jsonl_file(f"data\{args.input}")
 
     # Read inappropriate words from text file
     # with open(args.inappropriate_words, 'r', encoding='utf-8') as words_file:
@@ -51,7 +51,7 @@ def main():
     # filtered_reviews = filter_reviews(reviews, inappropriate_words)
     filtered_reviews = reviews
     # Write filtered reviews to output JSONL file
-    write_jsonl_file(filtered_reviews, f"data\processed_reviews\{args.output}")
+    write_jsonl_file(filtered_reviews, f"data\{args.output}")
 
     # Compute aggregations
     # aggregations = compute_aggregations(filtered_reviews)

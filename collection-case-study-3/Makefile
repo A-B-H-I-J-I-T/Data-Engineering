@@ -3,4 +3,4 @@ test:
 	@echo "Running tests..."
 
 run:
-	python code\main.py --input reviews.jsonl --output filtered_reviews.jsonl
+	python process_reviews.py --input reviews.jsonl --output filtered_reviews.jsonl
