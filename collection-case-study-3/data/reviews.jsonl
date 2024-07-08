@@ -30,3 +30,4 @@
 {"restaurantId": 15, "text": "Perfect! I will definitely be back.", "rating": 9.5, "publishedAt": "2023-04-30T19:30:00.000Z"}
 {"restaurantId": 18, "reviewId": 31, "text": "It is a really nice restaurant. Good location, nice and clean, pleasant storing.", "rating": 8, "publishedAt": "2023-08-14T17:33:00.000Z"}
 {"restaurantId": 18, "reviewId": 10, "text": "Fracking poop!", "rating": 1, "publishedAt": "2024-01-22T09:17:44Z" }
+{"restaurantId": 18, "reviewId": 10, "text": "Fracking poop!", "rating": 1, "publishedAt": "2020-01-22T09:17:44Z" }

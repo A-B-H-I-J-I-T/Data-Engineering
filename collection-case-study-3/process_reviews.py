@@ -4,6 +4,8 @@ import pandas as pd
 from jsonschema import  Draft7Validator, FormatChecker
 import numpy as np
 import re
+from datetime import datetime, timedelta, timezone
+from dateutil.relativedelta import relativedelta
 
 
 
@@ -63,7 +65,7 @@ def replace_foul_words(np_review, np_foul):
                 review[i] = '****'
                 inappropriate_count += 1
     
-        percentage = (inappropriate_count / total_words) * 100 if total_words > 0 else 0
+        percentage = (inappropriate_count / total_words)  if total_words > 0 else 0
         cleaned_text = ' '.join(review)
         a[2] = cleaned_text
         a[-1] = percentage
@@ -93,7 +95,6 @@ def main():
     np_review = validate_schema(reviews, schema)
     # df_review['publishedAt'] = pd.to_datetime(df_review['publishedAt'],format='mixed', utc=True)
 
-
     # load inappropriate words
     # df_inapt_word = pd.read_csv(file_path+args.inappropriate_words
     #                             , encoding='utf-8', 
@@ -106,9 +107,41 @@ def main():
     #replace inappropriate words
     filtered_review = replace_foul_words(np_review, np_inapt_word)
 
+    df_fil_review = pd.DataFrame(filtered_review)
+    df_fil_review['publishedAt'] = pd.to_datetime(df_fil_review['publishedAt'],format='mixed', utc=True)
+    # print(df_fil_review.info())
+    # Define the data types explicitly
+    df_fil_review = df_fil_review.astype({
+        'restaurantId': 'int32',
+        'reviewId': 'int32',
+        'text': 'string',
+        'rating': 'float32',
+        'publishedAt': 'datetime64[ns, UTC]',
+        'percentage': 'float32'
+    })
+
+    # Get today's date
+    today = datetime.now(timezone.utc)
+
+    # Calculate the date three years ago from today using relativedelta
+    three_years_ago = today - relativedelta(years=3)
+    # print(three_years_ago.date())
+    df_fil_review = df_fil_review[(df_fil_review['publishedAt'].dt.date>=three_years_ago.date())&
+                                  (df_fil_review['percentage']<0.2)]
+    
+    df_fil_review = df_fil_review.drop(columns=['percentage'])
+
+
+    df_fil_review.to_json(f"data/{args.output}", orient='records', lines=True, date_format='iso')
+    # write_jsonl_file(df_fil_review, f"data\{args.output}")
+
+    #aggregate the values
+    # aggregate_values(df_fil_review)
+    
+
 
     # Display the DataFrame
-    print(filtered_review)
+    print(df_fil_review.info())
     # print("*"+5)
 
     #process the reviews   
