@@ -1,7 +1,10 @@
 import argparse
 import json
 import pandas as pd
-from jsonschema import validate, ValidationError
+from jsonschema import  Draft7Validator, FormatChecker
+import numpy as np
+import re
+
 
 
 def read_jsonl_file(file_path):
@@ -22,15 +25,51 @@ def validate_schema(data, schema):
     # Collect valid rows
     valid_data = []
     invalid_data = []
+    validator = Draft7Validator(schema, format_checker=FormatChecker())
     for record in data:
-        try:
-            validate(instance=record, schema=schema)
-            valid_data.append(record)  # Add valid record to the list
-        except ValidationError as e:
-            invalid_data.append(record)  # Ignore invalid records
-    print(invalid_data)
-    return pd.DataFrame(valid_data)
+        if validator.is_valid(record):
+            valid_data.append(record)
+        else:
+            invalid_data.append(record)
+    # valid_data = [list(item.values())  for item in valid_data]
 
+    dtype = [('restaurantId', 'i4'),   # Integer
+            ('reviewId', 'i4'),   # Integer
+            ('text', object),  # String with max length 43
+            ('rating', 'f4'),   # Float
+            ('publishedAt', 'U24'),  # String with max length 24 (for datetime)
+            ('percentage', 'f4')]   # Float
+    # Create an empty structured array
+    np_data = np.zeros(len(valid_data), dtype=dtype)
+
+    for i, item in enumerate(valid_data):
+        # print(item)
+        np_data[i] = (item['restaurantId'], item['reviewId'], item['text'],item['rating'],item['publishedAt'],0)
+
+
+    # invalid_data = np.array(invalid_data)
+    # print(type(data))
+    return np_data
+
+def replace_foul_words(np_review, np_foul):
+    for a in np_review:
+        review = a[2]
+        review = review.split()
+        total_words = len(review)
+        inappropriate_count = 0
+        for i, word in enumerate(review):
+            clean_word = re.sub(r'\W+', '', word.lower())  # Remove punctuation and make lowercase
+            if clean_word in np_foul:
+                review[i] = '****'
+                inappropriate_count += 1
+    
+        percentage = (inappropriate_count / total_words) * 100 if total_words > 0 else 0
+        cleaned_text = ' '.join(review)
+        a[2] = cleaned_text
+        a[-1] = percentage
+    return np_review
+    
+    return cleaned_text, percentage    
 def main():
     #### argument parser
     parser = argparse.ArgumentParser(description='Filter and aggregate reviews from JSONL file.')
@@ -51,20 +90,26 @@ def main():
 
     # Load the jsonl file into a pandas DataFrame
     # df_review = pd.read_json(file_path+args.input, lines=True)
-    df_review = validate_schema(reviews, schema)
-    df_review['publishedAt'] = pd.to_datetime(df_review['publishedAt'],format='mixed', utc=True)
+    np_review = validate_schema(reviews, schema)
+    # df_review['publishedAt'] = pd.to_datetime(df_review['publishedAt'],format='mixed', utc=True)
 
 
     # load inappropriate words
-    df_inapt_word = pd.read_csv(file_path+args.inappropriate_words
-                                , encoding='utf-8', 
-                                delimiter='\t',
-                                header=None,
-                                names =["inapt_words"])  # Adjust the delimiter if necessary
+    # df_inapt_word = pd.read_csv(file_path+args.inappropriate_words
+    #                             , encoding='utf-8', 
+    #                             delimiter='\t',
+    #                             header=None,
+    #                             names =["inapt_words"])  # Adjust the delimiter if necessary
+    np_inapt_word = np.genfromtxt(file_path+args.inappropriate_words, 
+                                  dtype='str', encoding='utf-8')
+
+    #replace inappropriate words
+    filtered_review = replace_foul_words(np_review, np_inapt_word)
 
 
     # Display the DataFrame
-    print(df_review)
+    print(filtered_review)
+    # print("*"+5)
 
     #process the reviews   
 
