@@ -57,13 +57,29 @@ def replace_foul_words(np_review, np_foul):
     for a in np_review:
         review = a[2]
         review = review.split()
+        review = [re.sub(r'\W+', '', word.lower()) for word in review ]
+        review = np.array(review)
         total_words = len(review)
         inappropriate_count = 0
-        for i, word in enumerate(review):
-            clean_word = re.sub(r'\W+', '', word.lower())  # Remove punctuation and make lowercase
-            if clean_word in np_foul:
-                review[i] = '****'
-                inappropriate_count += 1
+        np_foul = np.char.lower(np_foul)
+        # print(np_foul)
+        for inap_word in np_foul:
+            matches = np.char.find(review, inap_word)>= 0
+            inappropriate_count += matches.sum()
+            review[matches] = "****"
+
+            # if review_word in np_foul :
+            # print(review_word)
+            # if (np.char.find(np_foul, review_word)>= 0).any():
+            #     review[i] = '****'
+            #     inappropriate_count += 1
+        # for i, word in enumerate(review):
+        #     review_word = re.sub(r'\W+', '', word.lower())  # Remove punctuation and make lowercase
+        #     # if review_word in np_foul :
+        #     print(review_word)
+        #     if (np.char.find(np_foul, review_word)>= 0).any():
+        #         review[i] = '****'
+        #         inappropriate_count += 1
     
         percentage = (inappropriate_count / total_words)  if total_words > 0 else 0
         cleaned_text = ' '.join(review)
@@ -71,7 +87,13 @@ def replace_foul_words(np_review, np_foul):
         a[-1] = percentage
     return np_review
     
-    return cleaned_text, percentage    
+    # return cleaned_text, percentage   
+def aggregate_values(df_fil_review):
+    pass 
+
+
+
+
 def main():
     #### argument parser
     parser = argparse.ArgumentParser(description='Filter and aggregate reviews from JSONL file.')
@@ -106,7 +128,7 @@ def main():
 
     #replace inappropriate words
     filtered_review = replace_foul_words(np_review, np_inapt_word)
-
+    # print(filtered_review)
     df_fil_review = pd.DataFrame(filtered_review)
     df_fil_review['publishedAt'] = pd.to_datetime(df_fil_review['publishedAt'],format='mixed', utc=True)
     # print(df_fil_review.info())
@@ -137,11 +159,11 @@ def main():
 
     #aggregate the values
     # aggregate_values(df_fil_review)
-    
+    df_agg_review = aggregate_values(df_fil_review)
 
 
     # Display the DataFrame
-    print(df_fil_review.info())
+    print(df_agg_review)
     # print("*"+5)
 
     #process the reviews   
