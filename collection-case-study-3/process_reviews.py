@@ -89,10 +89,51 @@ def replace_foul_words(np_review, np_foul):
     
     # return cleaned_text, percentage   
 def aggregate_values(df_fil_review):
-    pass 
+    today = pd.Timestamp.now(tz='UTC').normalize()
+    df_fil_review['reviewAge'] = df_fil_review['publishedAt'].dt.normalize()
+    df_fil_review['reviewAge'] = (today - df_fil_review['reviewAge']).dt.days
 
 
+    # Group by restaurant_id and aggregate
+    agg_funcs = {
+        'reviewId':'count',
+        'rating':  'mean',
+        'averageReviewLength': 'mean',
+        'reviewAge': ['max', 'min', 'mean']
+    }
+    df_fil_review = df_fil_review.groupby('restaurantId').agg(agg_funcs)
+    df_fil_review = df_fil_review.reset_index()
+    df_fil_review.columns = ['restaurantId','reviewCount','averageRating','averageReviewLength',
+                               'reviewAge_oldest',
+                                'reviewAge_newest',
+                                'reviewAge_average']
+    df_fil_review['reviewAge_average'] = df_fil_review['reviewAge_average'].astype(int)
 
+
+    # tuples = [('restaurantId',''),('reviewCount',''),('averageRating',''),('averageReviewLength',''),
+    #                           ('reviewAge',   'oldest'),
+    #                           ( 'reviewAge',   'newest'),
+    #                           ( 'reviewAge',  'average')]
+    # index = pd.MultiIndex.from_tuples(tuples, names=["first", "second"])
+    # df_fil_review.columns = index
+    return df_fil_review
+
+def write_agg_jsonl_file(df_agg_review,file_path):
+    # print(df_agg_review.info())
+    with open(f"data/{file_path}", 'w') as f:
+        for index,row in df_agg_review.iterrows():
+            json_dict = {
+                'restaurantId': int(row['restaurantId']),
+                'reviewCount' : int(row['reviewCount']),
+                'averageRating' : row['averageRating'],
+                'averageReviewLength' : int(row['averageReviewLength']),
+                'reviewAge':{"oldest": int(row['reviewAge_oldest']),
+                            "newest":int(row['reviewAge_newest']),
+                            "average":int(row['reviewAge_average'])
+                            }
+            }
+            jsonl_str = json.dumps(json_dict)
+            f.write(jsonl_str + '\n')
 
 def main():
     #### argument parser
@@ -100,7 +141,7 @@ def main():
     parser.add_argument('--input', type=str, required=True, help='Path to input JSONL file containing reviews')
     parser.add_argument('--inappropriate_words', type=str, required=True, help='Path to text file with inappropriate words')
     parser.add_argument('--output', type=str, required=True, help='Path to output JSONL file for filtered reviews')
-    # parser.add_argument('--aggregations', type=str, required=True, help='Path to output JSONL file for aggregations')
+    parser.add_argument('--aggregations', type=str, required=True, help='Path to output JSONL file for aggregations')
     args = parser.parse_args()
 
     # Read reviews from input JSONL file
@@ -143,13 +184,13 @@ def main():
     })
 
     # Get today's date
-    today = datetime.now(timezone.utc)
+    today = pd.Timestamp.now(tz='UTC').date()
 
     # Calculate the date three years ago from today using relativedelta
     three_years_ago = today - relativedelta(years=3)
     # print(three_years_ago.date())
-    df_fil_review = df_fil_review[(df_fil_review['publishedAt'].dt.date>=three_years_ago.date())&
-                                  (df_fil_review['percentage']<0.2)]
+    df_fil_review = df_fil_review[(df_fil_review['publishedAt'].dt.date>=three_years_ago)&
+                                  (df_fil_review['percentage']<=0.2)]
     
     df_fil_review = df_fil_review.drop(columns=['percentage'])
 
@@ -159,9 +200,14 @@ def main():
 
     #aggregate the values
     # aggregate_values(df_fil_review)
+
+    df_fil_review['averageReviewLength'] = df_fil_review['text'].apply(len)
+    df_fil_review = df_fil_review.drop(columns=['text'])
+
     df_agg_review = aggregate_values(df_fil_review)
 
-
+    write_agg_jsonl_file(df_agg_review,args.aggregations)
+    # df_agg_review.to_json(f"data/{args.aggregations}", orient='records', lines=True)
     # Display the DataFrame
     print(df_agg_review)
     # print("*"+5)

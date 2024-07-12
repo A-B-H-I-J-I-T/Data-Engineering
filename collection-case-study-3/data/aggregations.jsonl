@@ -1,0 +1,13 @@
+{"restaurantId": 1, "reviewCount": 2, "averageRating": 7.0, "averageReviewLength": 38, "reviewAge": {"oldest": 449, "newest": 274, "average": 361}}
+{"restaurantId": 2, "reviewCount": 2, "averageRating": 5.75, "averageReviewLength": 57, "reviewAge": {"oldest": 570, "newest": 490, "average": 530}}
+{"restaurantId": 3, "reviewCount": 2, "averageRating": 4.75, "averageReviewLength": 50, "reviewAge": {"oldest": 383, "newest": 348, "average": 365}}
+{"restaurantId": 4, "reviewCount": 2, "averageRating": 5.75, "averageReviewLength": 50, "reviewAge": {"oldest": 660, "newest": 336, "average": 498}}
+{"restaurantId": 5, "reviewCount": 1, "averageRating": 1.0, "averageReviewLength": 54, "reviewAge": {"oldest": 359, "newest": 359, "average": 359}}
+{"restaurantId": 6, "reviewCount": 4, "averageRating": 6.75, "averageReviewLength": 37, "reviewAge": {"oldest": 605, "newest": 273, "average": 421}}
+{"restaurantId": 10, "reviewCount": 2, "averageRating": 5.0, "averageReviewLength": 24, "reviewAge": {"oldest": 457, "newest": 245, "average": 351}}
+{"restaurantId": 11, "reviewCount": 1, "averageRating": 7.0, "averageReviewLength": 46, "reviewAge": {"oldest": 424, "newest": 424, "average": 424}}
+{"restaurantId": 12, "reviewCount": 2, "averageRating": 1.75, "averageReviewLength": 65, "reviewAge": {"oldest": 470, "newest": 285, "average": 377}}
+{"restaurantId": 13, "reviewCount": 1, "averageRating": 2.0, "averageReviewLength": 57, "reviewAge": {"oldest": 444, "newest": 444, "average": 444}}
+{"restaurantId": 14, "reviewCount": 4, "averageRating": 5.25, "averageReviewLength": 42, "reviewAge": {"oldest": 485, "newest": 271, "average": 361}}
+{"restaurantId": 15, "reviewCount": 2, "averageRating": 3.25, "averageReviewLength": 30, "reviewAge": {"oldest": 503, "newest": 311, "average": 407}}
+{"restaurantId": 18, "reviewCount": 1, "averageRating": 8.0, "averageReviewLength": 76, "reviewAge": {"oldest": 333, "newest": 333, "average": 333}}
