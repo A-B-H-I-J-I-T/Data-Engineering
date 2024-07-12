@@ -3,4 +3,4 @@ test:
 	@echo "Running tests..."
 
 run:
-	python process_reviews.py --input reviews.jsonl --inappropriate_words inappropriate_words.txt --output filtered_reviews.jsonl --aggregations aggregations.jsonl
+	python process_reviews.py --input data/reviews.jsonl --inappropriate_words data/inappropriate_words.txt --output data/filtered_reviews.jsonl --aggregations data/aggregations.jsonl
