@@ -110,11 +110,11 @@ def read_jsonl_file(file_path):
 
 def main():
     df_review = pd.read_json('data/reviews.jsonl',lines=True)
-    repeat_times = (100 // len(df_review)) + 1
+    repeat_times = (1000000 // len(df_review)) + 1
 
     df_large = pd.concat([df_review] * repeat_times, ignore_index=True)
 
-    df_large.to_json('test_revews.jsonl', orient='records', lines=True, date_format='iso')
+    df_large.to_json('test_reviews.jsonl', orient='records', lines=True, date_format='iso')
     # print(df_large)
 
 if __name__ == '__main__':
