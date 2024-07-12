@@ -56,18 +56,27 @@ def validate_schema(data, schema):
 def replace_foul_words(np_review, np_foul):
     for a in np_review:
         review = a[2]
-        review = review.split()
-        review = [re.sub(r'\W+', '', word.lower()) for word in review ]
-        review = np.array(review)
-        total_words = len(review)
+        lst_review = review.split()
+        lst_review = [re.sub(r'\W+', '', word.lower()) for word in lst_review ]
+        # review = np.array(review)
+        total_words = len(lst_review)
         inappropriate_count = 0
-        np_foul = np.char.lower(np_foul)
+        # np_foul = np.char.lower(np_foul)
         # print(np_foul)
         for inap_word in np_foul:
-            matches = np.char.find(review, inap_word)>= 0
-            inappropriate_count += matches.sum()
-            review[matches] = "****"
+            pattern = re.compile(re.escape(inap_word), re.IGNORECASE)
+            review, count = pattern.subn("****", review)
+            inappropriate_count += count
 
+
+            # matches = np.char.find(review, inap_word)>= 0
+            # inappropriate_count += matches.sum()
+            # review[matches] = "****"
+        percentage = (inappropriate_count / total_words)  if total_words > 0 else 0
+        # cleaned_text = ' '.join(review)
+        a[2] = review
+        a[-1] = percentage
+    return np_review
             # if review_word in np_foul :
             # print(review_word)
             # if (np.char.find(np_foul, review_word)>= 0).any():
@@ -81,11 +90,8 @@ def replace_foul_words(np_review, np_foul):
         #         review[i] = '****'
         #         inappropriate_count += 1
     
-        percentage = (inappropriate_count / total_words)  if total_words > 0 else 0
-        cleaned_text = ' '.join(review)
-        a[2] = cleaned_text
-        a[-1] = percentage
-    return np_review
+
+
     
     # return cleaned_text, percentage   
 def aggregate_values(df_fil_review):
@@ -182,7 +188,7 @@ def main():
         'publishedAt': 'datetime64[ns, UTC]',
         'percentage': 'float32'
     })
-
+    print(df_fil_review)
     # Get today's date
     today = pd.Timestamp.now(tz='UTC').date()
 
@@ -193,6 +199,11 @@ def main():
                                   (df_fil_review['percentage']<=0.2)]
     
     df_fil_review = df_fil_review.drop(columns=['percentage'])
+
+    # remove duplicate reviews
+    df_grouped = df_fil_review.groupby(['restaurantId','reviewId'])
+    idx_max_publish_dt = df_grouped['publishedAt'].idxmax()
+    df_fil_review = df_fil_review.loc[idx_max_publish_dt]
 
 
     df_fil_review.to_json(f"data/{args.output}", orient='records', lines=True, date_format='iso')
@@ -209,7 +220,7 @@ def main():
     write_agg_jsonl_file(df_agg_review,args.aggregations)
     # df_agg_review.to_json(f"data/{args.aggregations}", orient='records', lines=True)
     # Display the DataFrame
-    print(df_agg_review)
+    # print(df_agg_review)
     # print("*"+5)
 
     #process the reviews   
