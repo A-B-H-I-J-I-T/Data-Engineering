@@ -105,7 +105,6 @@ def main():
     parser.add_argument('--aggregations', type=str, required=True, help='Path to output JSONL file for aggregations')
     args = parser.parse_args()
 
-    print(args.input)
     #load reviews and schema file
     reviews = read_jsonl_file(args.input)
 
