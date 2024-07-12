@@ -7,7 +7,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from dateutil.relativedelta import relativedelta
 
-
+ 
 
 def read_jsonl_file(file_path):
     data = []
@@ -105,9 +105,10 @@ def main():
     parser.add_argument('--aggregations', type=str, required=True, help='Path to output JSONL file for aggregations')
     args = parser.parse_args()
 
+    print(args.input)
     #load reviews and schema file
     reviews = read_jsonl_file(args.input)
-    
+
     schema = read_schema_file('schemas/review.json')
 
     # Load the jsonl file into a pandas DataFrame
@@ -147,7 +148,7 @@ def main():
         'publishedAt': 'datetime64[ns, UTC]',
         'percentage': 'float32'
     })
-    print(df_fil_review)
+    # print(df_fil_review)
     # Get today's date
     today = pd.Timestamp.now(tz='UTC').date()
 
@@ -182,7 +183,7 @@ def main():
 
 
     write_jsonl_file(agg_json_valid,args.aggregations)
-    print(agg_json_valid)
+    # print(agg_json_valid)
 
 if __name__ == '__main__':
     main()
