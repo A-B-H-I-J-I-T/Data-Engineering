@@ -36,7 +36,7 @@
 
 9. Write the result to BigQuery for all 3 tables:
 
-    * Processed data is written to BigQuery, facilitating efficient storage and querying. This will make it easier to aggregate the data everyday (less reading from external storage bucket). We will have 3 tables processed_reviews(partition by ymd), discarded_reviews(partition by ymd) and restaurant_reviews_aggregates.
+    * Processed data is written to BigQuery, facilitating efficient storage and querying. This will make it easier to aggregate the data everyday (less reading from external storage bucket). We will have 3 tables processed_reviews(partition by ymd), discarded_reviews(partition by ymd) and restaurant_reviews_aggregates. BigQuery has autoscaling feature.
 
 10. Export the processed review and discarded reviews to GCS:
 
