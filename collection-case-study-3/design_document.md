@@ -1,4 +1,6 @@
-### Daigram 1
+### Architecture
+
+![ALt text](images/restaurant%20review%20architecture.jpg)
 
 
 1. Batch processing per day:
