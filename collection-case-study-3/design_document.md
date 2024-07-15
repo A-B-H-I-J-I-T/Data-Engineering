@@ -39,4 +39,3 @@
 10. Export the processed review and discarded reviews to GCS:
 
     * After processing, the next task would be to export valid processed reviews and discarded reviews to designated buckets in GCS. That are collection/processedReviews/ymd and collection/discardedReviews/ymd.
-
