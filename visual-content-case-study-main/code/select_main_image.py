@@ -3,7 +3,7 @@ from apache_beam.options.pipeline_options import PipelineOptions
 import json
 # from jsonschema import validate, ValidationError
 from jsonschema import  Draft7Validator, FormatChecker,ValidationError
-# from image_selection_logic import smile
+# from image_scoring_logic import smile
 
 class ReadJSONLFile(beam.DoFn):
     def process(self, element):
@@ -74,10 +74,33 @@ def run():
     with beam.Pipeline(options=options) as p:
         #validate image_tags files
         tags_valid_records = GetValidRecords(p, image_tags, tags_schema, "tags")
+        tags_valid_records = (tags_valid_records | 'Tags to tuple' >> beam.Map(lambda x:( x['image_id'],x))#lambda x: tuple(x.get(k)  for k in list(x.keys())))  
+                                 )
+                                              #  | 'Print it' >> beam.Map(print))
+                             
         #validate images files
-        image_valid_records = GetValidRecords(p, images, image_schema, "images")
+        image_valid_records = (GetValidRecords(p, images, image_schema, "images")
+                                | 'Image to tuple' >> beam.Map(lambda x: (x['image_id'],x)) #tuple(x.get(k)  for k in list(x.keys())))  
+                                                )#| 'Print Images' >> beam.Map(print)
         #validate main_image files
         main_valid_records = GetValidRecords(p, main_images, main_schema, "main")
+
+
+        image_with_tags = ({'image':image_valid_records,'tags':tags_valid_records}
+                          | 'Merge Image and Tags' >> beam.CoGroupByKey()#lambda x: [{**x[1]['image'][1] ,**x[1]['tags'][0] } if x[1]['image'] and x[1]['tags'] else {} ])
+                          | 'Print' >> beam.Map(print))
+        # before this you can deduplicate the record join the tags for image scoring
+        # image_with_tags = (( {'image':image_valid_records,'tags':tags_valid_records})
+        #                    | 'Merge image and tags' >> beam.CoGroupByKey(lambda element: 
+        #                                                                  element if element['image']['image_id']==element['tags']['image_id'] else {})
+        #                    | beam.Map(print)
+
+        # )
+
+
+        # print(type(main_valid_records))
+
+
 
         # main_valid_records | beam.io.WriteToText('output.txt')#'Print valid records' >> beam.Map(print)
         
