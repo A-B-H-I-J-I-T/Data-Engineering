@@ -1,6 +1,6 @@
 .PHONY: run
 run:
-	@echo "Running..."
+	python ./code/select_main_image.py
 
 
 .PHONY: test
