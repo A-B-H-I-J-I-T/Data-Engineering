@@ -3,7 +3,7 @@
   "title": "MessageSchema",
   "type": "object",
   "properties": {
-    "Key": {
+    "key": {
       "type": "object",
       "properties": {
         "hotel_id": {
@@ -34,5 +34,5 @@
       ]
     }
   },
-  "required": ["Key"]
+  "required": ["key"]
 }

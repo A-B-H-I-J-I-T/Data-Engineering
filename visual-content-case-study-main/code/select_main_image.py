@@ -1,8 +1,8 @@
 import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions
 import json
-from jsonschema import validate, ValidationError
-# from jsonschema import  Draft7Validator, FormatChecker,ValidationError
+# from jsonschema import validate, ValidationError
+from jsonschema import  Draft7Validator, FormatChecker,ValidationError
 
 class ReadJSONLFile(beam.DoFn):
     def process(self, element):
@@ -13,49 +13,95 @@ class ReadJSONLFile(beam.DoFn):
 class ValidateSchema(beam.DoFn):
     def __init__(self, schema):
         self.schema = schema
+        self.validator = Draft7Validator(schema, format_checker=FormatChecker())
+    # Validate JSON data against the schema
+    
 
     def process(self, element):
-        try:
-            validate(instance=element, schema=self.schema)
+        # errors = sorted(self.validator.iter_errors(element), key=lambda e: e.path)
+        # print([error.message for error in errors])
+        if self.validator.is_valid(element):
             yield (element, "Valid")
-        except ValidationError as e:
-            yield (element, f"Invalid: {e.message}")
+        else:
+            yield (element, "Invalid")
+        
+        # try:
+        #     validate(instance=element, schema=self.schema)
+        #     yield (element, "Valid")
+        # except ValidationError as e:
+        #     yield (element, f"Invalid: {e.message}")
+
+#read schema file
+def ReadSchema(s_path):
+    with open(s_path, 'r') as file:
+        schema = json.load(file)
+    return schema
+
+def GetValidRecords(p, files, schema, name):
+    files = p | f'Create file list {name}' >> beam.Create(files)
+    
+    files_jsonl = (files
+                    | f'Read JSONL files {name}' >> beam.ParDo(ReadJSONLFile())
+                    )
+
+    # files_jsonl | f'Print records {name}' >> beam.Map(print)       
+    validation_result = (files_jsonl
+                            | f'Validate schema {name}' >> beam.ParDo(ValidateSchema(schema))
+                            )
+    
+    valid_records = (validation_result
+                        | f'Filter valid records {name}' >> beam.Filter(lambda x: x[1] == "Valid")
+                        | f'Get valid records {name}' >> beam.Map(lambda x: x[0])
+                        )
+    
+    # invalid_records = (validation_result
+    #                     | f'Filter invalid records {name}' >> beam.Filter(lambda x: not x[1] == "Valid")
+    #                     | f'Get invalid records {name}' >> beam.Map(lambda x: (x[0], x[1]))
+    #                     )
+    return valid_records
+
 
 def run():
     image_tags = ['./data/image_tags.jsonl']  # List of your JSONL files
-    schema = {
-        "type": "object",
-        "properties": {
-            "name": {"type": "string"},
-            "age": {"type": "integer"},
-            "email": {"type": "string", "format": "email"}
-        },
-        "required": ["name", "age", "email"]
-    }
-    
+    images = ['./data/images.jsonl'] 
+    main_images = ['./data/main_images.jsonl'] 
+    tags_schema = ReadSchema('./schemas/image_tags.json')
+    image_schema = ReadSchema('./schemas/image.json')
+    main_schema = ReadSchema('./schemas/main_image.json')
+    # print(main_schema)
     options = PipelineOptions()
     with beam.Pipeline(options=options) as p:
-        image_tags = p | 'Create file list' >> beam.Create(image_tags)
+        #validate image_tags files
+        tags_valid_records = GetValidRecords(p, image_tags, tags_schema, "tags")
+        #validate images files
+        image_valid_records = GetValidRecords(p, images, image_schema, "images")
+        #validate main_image files
+        main_valid_records = GetValidRecords(p, main_images, main_schema, "main")
+
+        main_valid_records | beam.io.WriteToText('output.txt')#'Print valid records' >> beam.Map(print)
+
+        # image_tags = p | 'Create file list' >> beam.Create(image_tags)
         
-        image_tags_jsonl = (image_tags
-                     | 'Read JSONL files' >> beam.ParDo(ReadJSONLFile())
-                     )
-        image_tags_jsonl | 'Print records' >> beam.Map(print)       
-        # validation_result = (json_data
-        #                      | 'Validate schema' >> beam.ParDo(ValidateSchema(schema))
+        # image_tags_jsonl = (image_tags
+        #              | 'Read JSONL files' >> beam.ParDo(ReadJSONLFile())
+        #              )
+        
+        # # image_tags_jsonl | 'Print records' >> beam.Map(print)       
+        # tags_validation_result = (image_tags_jsonl
+        #                      | 'Validate schema' >> beam.ParDo(ValidateSchema(tags_schema))
         #                      )
         
-        # valid_records = (validation_result
+        # tags_valid_records = (tags_validation_result
         #                  | 'Filter valid records' >> beam.Filter(lambda x: x[1] == "Valid")
         #                  | 'Get valid records' >> beam.Map(lambda x: x[0])
         #                  )
 
-        # invalid_records = (validation_result
+        # invalid_records = (tags_validation_result
         #                    | 'Filter invalid records' >> beam.Filter(lambda x: not x[1] == "Valid")
         #                    | 'Get invalid records' >> beam.Map(lambda x: (x[0], x[1]))
         #                    )
         
-        # valid_records | 'Print valid records' >> beam.Map(print)
+
         # invalid_records | 'Print invalid records' >> beam.Map(print)
 
 if __name__ == "__main__":
