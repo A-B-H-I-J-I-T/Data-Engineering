@@ -3,6 +3,7 @@ from apache_beam.options.pipeline_options import PipelineOptions
 import json
 # from jsonschema import validate, ValidationError
 from jsonschema import  Draft7Validator, FormatChecker,ValidationError
+# from image_selection_logic import smile
 
 class ReadJSONLFile(beam.DoFn):
     def process(self, element):
@@ -78,8 +79,8 @@ def run():
         #validate main_image files
         main_valid_records = GetValidRecords(p, main_images, main_schema, "main")
 
-        main_valid_records | beam.io.WriteToText('output.txt')#'Print valid records' >> beam.Map(print)
-
+        # main_valid_records | beam.io.WriteToText('output.txt')#'Print valid records' >> beam.Map(print)
+        
         # image_tags = p | 'Create file list' >> beam.Create(image_tags)
         
         # image_tags_jsonl = (image_tags
