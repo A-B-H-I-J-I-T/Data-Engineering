@@ -68,6 +68,15 @@ def merge_records(kv_pair):
         merged_record = {**left[0], **right[0]}  # Merge dictionaries
         return merged_record
 
+# def merge_records(kv_pair):
+#     """Merges the records for a given key."""
+#     left, right = kv_pair[1]['left'], kv_pair[1]['right']
+#     if left and right:
+#         right = right[0]['tags']
+#         if right:  # Ensure both sides have data
+#             merged_record = {**left[0], **right[0]}  # Merge dictionaries
+#             return merged_record
+
 def run():
     image_tags = ['./data/image_tags.jsonl']  # List of your JSONL files
     images = ['./data/images.jsonl'] 
