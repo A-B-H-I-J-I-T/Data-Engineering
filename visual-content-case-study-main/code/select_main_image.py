@@ -61,6 +61,12 @@ def GetValidRecords(p, files, schema, name):
     #                     )
     return valid_records
 
+def merge_records(kv_pair):
+    """Merges the records for a given key."""
+    left, right = kv_pair[1]['left'], kv_pair[1]['right']
+    if left and right:  # Ensure both sides have data
+        merged_record = {**left[0], **right[0]}  # Merge dictionaries
+        return merged_record
 
 def run():
     image_tags = ['./data/image_tags.jsonl']  # List of your JSONL files
@@ -74,7 +80,8 @@ def run():
     with beam.Pipeline(options=options) as p:
         #validate image_tags files
         tags_valid_records = GetValidRecords(p, image_tags, tags_schema, "tags")
-        tags_valid_records = (tags_valid_records | 'Tags to tuple' >> beam.Map(lambda x:( x['image_id'],x))#lambda x: tuple(x.get(k)  for k in list(x.keys())))  
+        tags_valid_records = (tags_valid_records 
+                              | 'Tags to tuple' >> beam.Map(lambda x:( x['image_id'],x))#lambda x: tuple(x.get(k)  for k in list(x.keys())))  
                                  )
                                               #  | 'Print it' >> beam.Map(print))
                              
@@ -86,8 +93,10 @@ def run():
         main_valid_records = GetValidRecords(p, main_images, main_schema, "main")
 
 
-        image_with_tags = ({'image':image_valid_records,'tags':tags_valid_records}
-                          | 'Merge Image and Tags' >> beam.CoGroupByKey()#lambda x: [{**x[1]['image'][1] ,**x[1]['tags'][0] } if x[1]['image'] and x[1]['tags'] else {} ])
+        image_with_tags = ({'left':image_valid_records,'right':tags_valid_records}
+                          | 'Group by Key' >> beam.CoGroupByKey()#lambda x: [{**x[1]['image'][1] ,**x[1]['tags'][0] } if x[1]['image'] and x[1]['tags'] else {} ])
+                          | 'Filter and Merge' >> beam.Map(merge_records)
+                          | 'Remove None' >> beam.Filter(lambda x: x is not None)
                           | 'Print' >> beam.Map(print))
         # before this you can deduplicate the record join the tags for image scoring
         # image_with_tags = (( {'image':image_valid_records,'tags':tags_valid_records})
