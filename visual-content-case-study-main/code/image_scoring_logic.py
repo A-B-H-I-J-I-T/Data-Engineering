@@ -39,12 +39,13 @@ def compute_freshness_score(created_date):
 
 def compute_tag_priority_score(tags):
     # Placeholder - implement specific tag priority scoring rules
-    return 1 if tags else 0
+    return max([tag['probability'] for tag in tags]) if tags else 0
+    #return 1 if tags else 0
 
 def compute_image_score(image):
     width = image['width']
     height = image['height']
-    created_date = image['created_date']
+    created_date = image['created_at']
     tags = image['tags']
     
     resolution = width * height
@@ -67,41 +68,59 @@ def compute_image_score(image):
     
     return score_image
 
-class ExtractImages(beam.DoFn):
-    def process(self, element):
-        item = json.loads(element)
-        item_id = item['item_id']
-        for image in item['images']:
-            image['item_id'] = item_id
-            yield image
+# class ExtractImages(beam.DoFn):
+#     def process(self, element):
+#         item = json.loads(element)
+#         item_id = item['item_id']
+#         for image in item['images']:
+#             image['item_id'] = item_id
+#             yield image
 
-class AssignHighScore(beam.DoFn):
+def format_main_image(item_id, main_image):
+    if main_image:
+        main_image = {
+            'key' : {'hotel_id' : main_image['hotel_id'] },
+            'value' : { 'image_id' : main_image['image_id'] , 'cdn_url': main_image['cdn_url'] }
+        }
+    else:
+        main_image = {
+            'key' : {'hotel_id' : main_image['hotel_id'] },
+            'value' : None
+        }
+    return main_image
+
+
+class GetNewMainImage(beam.DoFn):
     def process(self, element):
         item_id, images = element
         highest_score = -1
         main_image = None
-        for image in images:
-            score = compute_image_score(image)
-            if score > highest_score:
-                highest_score = score
-                main_image = image
+        if bool(images):
+            for image in images:
+                score = compute_image_score(image)
+                if score > highest_score:
+                    highest_score = score
+                    main_image = image
         
-        if main_image:
-            main_image['main_image_score'] = highest_score
+            main_image = format_main_image(item_id, main_image)
             yield main_image
-
-# Pipeline Setup
-def run(argv=None):
-    options = PipelineOptions(argv)
+        else:
+            yield format_main_image(item_id, main_image)
+# # Pipeline Setup
+# def score_image(image_with_tags,argv=None):
+#     options = PipelineOptions(argv)
     
-    with beam.Pipeline(options=options) as p:
-        (p 
-         | 'ReadInput' >> beam.io.ReadFromText('input.jsonl')
-         | 'ExtractImages' >> beam.ParDo(ExtractImages())
-         | 'GroupByItem' >> beam.GroupByKey()
-         | 'AssignHighScore' >> beam.ParDo(AssignHighScore())
-         | 'WriteOutput' >> beam.io.WriteToText('output.jsonl')
-        )
+#     with beam.Pipeline(options=options) as p:
+#         image_with_tags | 'Print' >> beam.Map(print)
+        
+    # with beam.Pipeline(options=options) as p:
+    #     (p 
+    #      | 'ReadInput' >> beam.io.ReadFromText('input.jsonl')
+    #      | 'ExtractImages' >> beam.ParDo(ExtractImages())
+    #      | 'GroupByItem' >> beam.GroupByKey()
+    #      | 'AssignHighScore' >> beam.ParDo(AssignHighScore())
+    #      | 'WriteOutput' >> beam.io.WriteToText('output.jsonl')
+    #     )
 
-if __name__ == '__main__':
-    run()
+# if __name__ == '__main__':
+#     run()

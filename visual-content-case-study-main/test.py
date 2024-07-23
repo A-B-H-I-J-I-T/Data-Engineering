@@ -45,7 +45,20 @@
 #     words | beam.Map(print)
 
 
-x = (2,{'l':[{'2':'3'}],'r':[{'4':'5'}]})
-z,a = x[1]
-print(z, a)
-print(x[1]['l'])
+# x = (2,{'l':[{'2':'3'}],'r':[{'4':'5'}]})
+# z,a = x
+# print(z, a)
+# # print(x[1]['l'])
+
+from datetime import datetime
+
+def run(created_date):
+    today = datetime.today().date()
+    created_date = datetime.strptime(created_date, "%Y-%m-%d").date()
+    freshness = (today - created_date).days
+    score = 1 + (-1 * (freshness / 3650))
+    return max(0, min(score, 1))
+
+
+if __name__ == '__main__':
+    print(run("2024-07-22"))

@@ -3,7 +3,7 @@ from apache_beam.options.pipeline_options import PipelineOptions
 import json
 # from jsonschema import validate, ValidationError
 from jsonschema import  Draft7Validator, FormatChecker,ValidationError
-# from image_scoring_logic import smile
+from image_scoring_logic import GetNewMainImage
 
 class ReadJSONLFile(beam.DoFn):
     def process(self, element):
@@ -103,10 +103,24 @@ def run():
 
 
         image_with_tags = ({'left':image_valid_records,'right':tags_valid_records}
-                          | 'Group by Key' >> beam.CoGroupByKey()#lambda x: [{**x[1]['image'][1] ,**x[1]['tags'][0] } if x[1]['image'] and x[1]['tags'] else {} ])
+                          | 'Group by Image' >> beam.CoGroupByKey()#lambda x: [{**x[1]['image'][1] ,**x[1]['tags'][0] } if x[1]['image'] and x[1]['tags'] else {} ])
                           | 'Filter and Merge' >> beam.Map(merge_records)
                           | 'Remove None' >> beam.Filter(lambda x: x is not None)
-                          | 'Print' >> beam.Map(print))
+                          | 'Set to group by Hotel' >> beam.Map(lambda x : (x['hotel_id'],x))
+                           )
+        
+        Images_gb_hotel = (image_with_tags
+                           | 'Group by hotel' >> beam.GroupByKey()
+                           
+        )
+
+        new_main_image = (Images_gb_hotel
+                          |  'Get main image' >> beam.ParDo(GetNewMainImage())
+                          | 'Print' >> beam.Map(print)
+
+        )
+
+        # score_image(image_with_tags)
         # before this you can deduplicate the record join the tags for image scoring
         # image_with_tags = (( {'image':image_valid_records,'tags':tags_valid_records})
         #                    | 'Merge image and tags' >> beam.CoGroupByKey(lambda element: 
