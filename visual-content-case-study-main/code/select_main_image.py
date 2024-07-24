@@ -1,5 +1,5 @@
 import apache_beam as beam
-from apache_beam.options.pipeline_options import PipelineOptions
+# from apache_beam.options.pipeline_options import PipelineOptions
 import json
 import math
 from datetime import datetime
@@ -84,8 +84,8 @@ def format_main_image(item_id, main_image):
         }
     else:
         main_image = {
-            'key' : {'hotel_id' : main_image['hotel_id'] },
-            'value' : None
+            'key' : {'hotel_id' : main_image['hotel_id'] }#,
+            # 'value' : None
         }
     return main_image
 

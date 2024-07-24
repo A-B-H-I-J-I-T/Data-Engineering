@@ -61,14 +61,18 @@ def GetValidRecords(p, files, schema, name):
     #                     )
     return valid_records
 
-def merge_records(kv_pair):
+def merge_image_n_tags(kv_pair):
     """Merges the records for a given key."""
     left, right = kv_pair[1]['left'], kv_pair[1]['right']
     if left and right:  # Ensure both sides have data
         merged_record = {**left[0], **right[0]}  # Merge dictionaries
         return merged_record
 
-# def merge_records(kv_pair):
+    elif left and not right:
+        merged_record = {**left[0], **{'tags':[]}}
+        return merged_record
+
+# def merge_image_n_tags(kv_pair):
 #     """Merges the records for a given key."""
 #     left, right = kv_pair[1]['left'], kv_pair[1]['right']
 #     if left and right:
@@ -76,6 +80,13 @@ def merge_records(kv_pair):
 #         if right:  # Ensure both sides have data
 #             merged_record = {**left[0], **right[0]}  # Merge dictionaries
 #             return merged_record
+
+def create_kv_pair(element):
+    if 'value' in element.keys():
+        key = (element['key']['hotel_id'], element['value']['image_id'])
+    else:
+        key = (element['key']['hotel_id'], None)
+    return (key, element)
 
 def run():
     image_tags = ['./data/image_tags.jsonl']  # List of your JSONL files
@@ -99,25 +110,35 @@ def run():
                                 | 'Image to tuple' >> beam.Map(lambda x: (x['image_id'],x)) #tuple(x.get(k)  for k in list(x.keys())))  
                                                 )#| 'Print Images' >> beam.Map(print)
         #validate main_image files
-        main_valid_records = GetValidRecords(p, main_images, main_schema, "main")
+        main_valid_records = (GetValidRecords(p, main_images, main_schema, "main")
+                            | 'old_main_image to tuple'  >> beam.Map( lambda x:(x['key']['hotel_id'],x))
+                            #   | 'old_main_image to tuple' >> beam.Map(create_kv_pair)
+                            #   | 'old_main to tuple' >> beam.Map(lambda x: tuple(tuple(x['key']['hotel_id'],x['value']['image_id']), x)) 
+                            #   | 'print old main image' >> beam.Map(print)
+        )
 
 
         image_with_tags = ({'left':image_valid_records,'right':tags_valid_records}
                           | 'Group by Image' >> beam.CoGroupByKey()#lambda x: [{**x[1]['image'][1] ,**x[1]['tags'][0] } if x[1]['image'] and x[1]['tags'] else {} ])
-                          | 'Filter and Merge' >> beam.Map(merge_records)
+                          | 'Filter and Merge' >> beam.Map(merge_image_n_tags)
                           | 'Remove None' >> beam.Filter(lambda x: x is not None)
                           | 'Set to group by Hotel' >> beam.Map(lambda x : (x['hotel_id'],x))
                            )
         
         Images_gb_hotel = (image_with_tags
-                           | 'Group by hotel' >> beam.GroupByKey()
-                           
+                           | 'Group by hotel' >> beam.GroupByKey()                
         )
 
-        new_main_image = (Images_gb_hotel
+        main_images_snapshot = (Images_gb_hotel
                           |  'Get main image' >> beam.ParDo(GetNewMainImage())
-                          | 'Print' >> beam.Map(print)
+                          | 'new_main_image to tuple' >> beam.Map( lambda x:(x['key']['hotel_id'],x))
+                        #   | 'new_main_image to tuple' >> beam.Map(create_kv_pair)
+                        #   | 'Print' >> beam.Map(print)
+        )
 
+        cdc = ({'left':main_valid_records,'right':main_images_snapshot}
+                          | 'Group by hotels and image' >> beam.CoGroupByKey()
+                          | 'Print' >> beam.Map(print)
         )
 
         # score_image(image_with_tags)

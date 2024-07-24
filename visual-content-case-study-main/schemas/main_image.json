@@ -12,7 +12,7 @@
       },
       "required": ["hotel_id"]
     },
-    "Value": {
+    "value": {
       "anyOf": [
         {
           "type": "null"
