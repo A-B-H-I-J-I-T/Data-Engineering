@@ -88,6 +88,35 @@ def create_kv_pair(element):
         key = (element['key']['hotel_id'], None)
     return (key, element)
 
+class ChangeDataCapture(beam.DoFn):
+    def __init__(self):
+        self.newly = 0
+        self.updtd = 0
+        self.deleted = 0
+
+    def process(self, grpd_hotels):
+        # errors = sorted(self.validator.iter_errors(element), key=lambda e: e.path)
+        # print([error.message for error in errors])
+        if not bool(grpd_hotels[1]['left']) and bool(grpd_hotels[1]['right']):
+            self.newly += 1
+        elif not bool(grpd_hotels[1]['right']) and bool(grpd_hotels[1]['left']):
+            self.deleted += 1
+        elif  bool(grpd_hotels[1]['left']) and bool(grpd_hotels[1]['right']):
+            if grpd_hotels[1]['left'][0]['value']['image_id'] != grpd_hotels[1]['right'][0]['value']['image_id']:
+                 self.updtd += 1
+
+    def cdc(self):
+        yield  {
+        'Number of images processed': 0,
+        'Number of hotels with images':0,
+        'Number of main images': {
+            'Newly elected' : self.newly,
+            'Updated': self.updtd,
+            'Deleted': self.deleted
+
+        }
+        }
+
 def run():
     image_tags = ['./data/image_tags.jsonl']  # List of your JSONL files
     images = ['./data/images.jsonl'] 
@@ -138,8 +167,11 @@ def run():
 
         cdc = ({'left':main_valid_records,'right':main_images_snapshot}
                           | 'Group by hotels and image' >> beam.CoGroupByKey()
+                          | 'Calculate CDC' >> beam.ParDo(ChangeDataCapture())
                           | 'Print' >> beam.Map(print)
         )
+
+
 
         # score_image(image_with_tags)
         # before this you can deduplicate the record join the tags for image scoring
