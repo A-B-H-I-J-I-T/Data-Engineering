@@ -102,8 +102,22 @@ def changeDataCapture(grpd_hotels):
     elif  bool(grpd_hotels[1]['left']) and bool(grpd_hotels[1]['right']):
         if grpd_hotels[1]['left'][0]['value']['image_id'] != grpd_hotels[1]['right'][0]['value']['image_id']:
                 return ('updated', grpd_hotels[1]['right'][0])
-        if grpd_hotels[1]['left'][0]['value']['image_id'] == grpd_hotels[1]['right'][0]['value']['image_id']:
-                return ('nochange', grpd_hotels[1]['right'][0] )
+        # elif grpd_hotels[1]['left'][0]['value']['image_id'] == grpd_hotels[1]['right'][0]['value']['image_id']:
+        #         return ('nochange', grpd_hotels[1]['right'][0] )
+
+def calculateMetrics(grpd_hotels):
+    # errors = sorted(self.validator.iter_errors(element), key=lambda e: e.path)
+    # print([error.message for error in errors])
+    if not bool(grpd_hotels[1]['left']) and bool(grpd_hotels[1]['right']):
+        return 'newly'
+    elif not bool(grpd_hotels[1]['right']) and bool(grpd_hotels[1]['left']):
+        return 'deleted'
+    elif  bool(grpd_hotels[1]['left']) and bool(grpd_hotels[1]['right']):
+        if grpd_hotels[1]['left'][0]['value']['image_id'] != grpd_hotels[1]['right'][0]['value']['image_id']:
+                return 'updated'
+        # elif grpd_hotels[1]['left'][0]['value']['image_id'] == grpd_hotels[1]['right'][0]['value']['image_id']:
+        #         return 'nochange'
+
 
 # class ChangeDataCapture(beam.DoFn):
 #     def __init__(self):
@@ -122,17 +136,27 @@ def changeDataCapture(grpd_hotels):
 #             if grpd_hotels[1]['left'][0]['value']['image_id'] != grpd_hotels[1]['right'][0]['value']['image_id']:
 #                  self.updtd += 1
 
-#     def cdc(self):
-#         yield  {
-#         'Number of images processed': 0,
-#         'Number of hotels with images':0,
-#         'Number of main images': {
-#             'Newly elected' : self.newly,
-#             'Updated': self.updtd,
-#             'Deleted': self.deleted
+def metrics_agg_format(metrics_agg):
+    merged_dict = { }
+    for d in metrics_agg:
+        merged_dict.update(d)
+    return merged_dict
+    # print(merged_dict)
+    # newly = merged_dict['newly']
+    # print(newly)
+def format_metrics(merged_dict):
+    merged_dict = {
+    'Number of images processed': merged_dict['Number of images processed'],
+    'Number of hotels with images': merged_dict['Number of hotels with images'],
+    'Number of main images': {
+        'Newly elected' : merged_dict['newly'],
+        'Updated': merged_dict['updated'],
+        'Deleted': merged_dict['deleted']
 
-#         }
-#         }
+    }
+    }
+    return merged_dict
+
 
 def run():
     image_tags = ['./data/image_tags.jsonl']  # List of your JSONL files
@@ -185,23 +209,50 @@ def run():
         cdc = ({'left':main_valid_records,'right':main_images_snapshot}
                           | 'Group by hotels and image' >> beam.CoGroupByKey()
                           | 'Create the delta keys' >> beam.Map(changeDataCapture)
-                          | 'CDC ' >> beam.Map(lambda x: x [1] if x[0]!='nochange' else None )
-                          | 'Write CDC' >> beam.io.WriteToText('./cdc/cdc', shard_name_template='', file_name_suffix='.jsonl')
+                          | 'CDC ' >> beam.Map(lambda x: x [1] )
+                        #   | 'Write CDC' >> beam.io.WriteToText('./cdc/cdc', shard_name_template='', file_name_suffix='.jsonl')
                         #   | 'Calculate CDC' >> beam.combiners.Count.PerElement()
                         #   | 'Calculate CDC' >> beam.ParDo(ChangeDataCapture())
                         #   | 'Print' >> beam.Map(print)
         )
 
         metrics = ({'left':main_valid_records,'right':main_images_snapshot}
-                          | 'Group by hotels and image' >> beam.CoGroupByKey()
-                          | 'Create the delta keys' >> beam.Map(changeDataCapture)
-                          | 'CDC ' >> beam.Map(lambda x: x [1] if x[0]!='nochange' else None )
-                        #   | 'Write CDC' >> beam.io.WriteToText('./cdc/cdc', shard_name_template='', file_name_suffix='.jsonl')
+                          | 'Group by hotels and image for metrics' >> beam.CoGroupByKey()
+                          | 'Create the delta keys for metrics' >> beam.Map(calculateMetrics)
+                          | 'Calculate count' >> beam.combiners.Count.PerElement()
+                        #   | 'mertrics ' >> beam.Map(lambda x: x)
+
+                        #   | 'Write metrics' >> beam.io.WriteToText('./metrics/metrics', shard_name_template='', file_name_suffix='.jsonl')
                         #   | 'Calculate CDC' >> beam.combiners.Count.PerElement()
                         #   | 'Calculate CDC' >> beam.ParDo(ChangeDataCapture())
-                          | 'Print' >> beam.Map(print)
+                        #   | 'Print' >> beam.Map(print)
+        )
+        no_of_images = (image_valid_records
+                                # 
+                                | 'No of Images' >> beam.combiners.Count.Globally()
+                                | 'Extract Image Id' >> beam.Map(lambda x: ('Number of images processed',x))
+                                # | 'Print no hotel_w_images' >> beam.Map(print)
         )
 
+        no_of_h_w_images = (image_valid_records
+                                | 'Get Hotels' >> beam.Map(lambda x: x[1]['hotel_id'])
+                                |'Distinct Hotels'>> beam.Distinct()
+                                | 'No of Hotels' >> beam.combiners.Count.Globally()
+                                | 'Extract Hotels Id' >> beam.Map(lambda x: ('Number of hotels with images',x))
+
+        )
+
+        metrics_agg = ((metrics, no_of_images, no_of_h_w_images) 
+                       | 'Merge PCollections' >> beam.Flatten()
+                       | 'CollectTuples' >> beam.Map(lambda t: {t[0]:t[1]})
+                       | 'Combine all dict' >> beam.CombineGlobally(metrics_agg_format)
+                       | 'Format the metrics jsonl' >> beam.Map(format_metrics)
+                       | 'Write metrics' >> beam.io.WriteToText('./metrics/metrics', shard_name_template='', file_name_suffix='.jsonl')
+                    #    | 'Print no ' >> beam.Map(print)
+                       )
+        
+if __name__ == "__main__":
+    run()
         # no_hotel_w_images = (main_images_snapshot 
         #                   | 'Count  new of snapshot' >> beam.combiners.Count.Globally()
         #                 #   | 'Print no hotel_w_images' >> beam.Map(print)
@@ -249,5 +300,3 @@ def run():
 
         # invalid_records | 'Print invalid records' >> beam.Map(print)
 
-if __name__ == "__main__":
-    run()
