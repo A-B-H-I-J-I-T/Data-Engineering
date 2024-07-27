@@ -24,7 +24,10 @@ class ValidateSchema(beam.DoFn):
         if self.validator.is_valid(element):
             yield (element, "Valid")
         else:
-            yield (element, "Invalid")
+            errors = sorted(self.validator.iter_errors(element), key=lambda e: e.path)
+            errors = errors[0].message
+            # errors = [error.message for error in errors]
+            yield (element, "Invalid", errors)
         
         # try:
         #     validate(instance=element, schema=self.schema)
@@ -55,11 +58,11 @@ def GetValidRecords(p, files, schema, name):
                         | f'Get valid records {name}' >> beam.Map(lambda x: x[0])
                         )
     
-    # invalid_records = (validation_result
-    #                     | f'Filter invalid records {name}' >> beam.Filter(lambda x: not x[1] == "Valid")
-    #                     | f'Get invalid records {name}' >> beam.Map(lambda x: (x[0], x[1]))
-    #                     )
-    return valid_records
+    invalid_records = (validation_result
+                        | f'Filter invalid records {name}' >> beam.Filter(lambda x:  x[1] == "Invalid")
+                        | f'Get invalid records {name}' >> beam.Map(lambda x: (x[0], x[2]))
+                        )
+    return valid_records , invalid_records
 
 def merge_image_n_tags(kv_pair):
     """Merges the records for a given key."""
@@ -146,17 +149,22 @@ def metrics_agg_format(metrics_agg):
     # print(newly)
 def format_metrics(merged_dict):
     merged_dict = {
-    'Number of images processed': merged_dict['Number of images processed'],
-    'Number of hotels with images': merged_dict['Number of hotels with images'],
+    'Number of images processed': merged_dict['no_of_img_prc'] if 'no_of_img_prc' in merged_dict.keys() else 0 ,
+    'Number of hotels with images': merged_dict['no_of_hotel_prc'] if 'no_of_hotel_prc' in merged_dict.keys() else 0,
     'Number of main images': {
-        'Newly elected' : merged_dict['newly'],
-        'Updated': merged_dict['updated'],
-        'Deleted': merged_dict['deleted']
+        'Newly elected' : merged_dict['newly']if 'newly' in merged_dict.keys() else 0,
+        'Updated': merged_dict['updated'] if 'updated' in merged_dict.keys() else 0,
+        'Deleted': merged_dict['deleted'] if 'deleted' in merged_dict.keys() else 0
 
     }
     }
+
     return merged_dict
 
+def addInvalidationReason(invalid_records):
+    invalid_dict = invalid_records[0]
+    invalid_dict.update({'Invalidation Reason':invalid_records[1]})
+    return invalid_dict
 
 def run():
     image_tags = ['./data/image_tags.jsonl']  # List of your JSONL files
@@ -169,24 +177,44 @@ def run():
     options = PipelineOptions()
     with beam.Pipeline(options=options) as p:
         #validate image_tags files
-        tags_valid_records = GetValidRecords(p, image_tags, tags_schema, "tags")
+        tags_valid_records, tags_invalid_records = GetValidRecords(p, image_tags, tags_schema, "tags")
         tags_valid_records = (tags_valid_records 
                               | 'Tags to tuple' >> beam.Map(lambda x:( x['image_id'],x))#lambda x: tuple(x.get(k)  for k in list(x.keys())))  
                                  )
                                               #  | 'Print it' >> beam.Map(print))
-                             
+
+
         #validate images files
-        image_valid_records = (GetValidRecords(p, images, image_schema, "images")
+        image_valid_records, image_invalid_records = GetValidRecords(p, images, image_schema, "images")
+        image_valid_records = (image_valid_records
                                 | 'Image to tuple' >> beam.Map(lambda x: (x['image_id'],x)) #tuple(x.get(k)  for k in list(x.keys())))  
                                                 )#| 'Print Images' >> beam.Map(print)
         #validate main_image files
-        main_valid_records = (GetValidRecords(p, main_images, main_schema, "main")
+        main_valid_records, main_invalid_records = GetValidRecords(p, main_images, main_schema, "main")
+        main_valid_records = (main_valid_records
                             | 'old_main_image to tuple'  >> beam.Map( lambda x:(x['key']['hotel_id'],x))
                             #   | 'old_main_image to tuple' >> beam.Map(create_kv_pair)
                             #   | 'old_main to tuple' >> beam.Map(lambda x: tuple(tuple(x['key']['hotel_id'],x['value']['image_id']), x)) 
                             #   | 'print old main image' >> beam.Map(print)
         )
-
+        
+        (tags_invalid_records 
+         | 'Map the invalid tag message' >> beam.Map(addInvalidationReason)
+        #  | 'Print tags' >> beam.Map(print)
+         |'Write invalid tags' >> beam.io.WriteToText('./invalids/invalid_tags', shard_name_template='', file_name_suffix='.jsonl')
+        )
+        
+        (image_invalid_records 
+         | 'Map the invalid image message' >> beam.Map(addInvalidationReason)
+        #  | 'Print tags' >> beam.Map(print)
+         |'Write invalid images' >> beam.io.WriteToText('./invalids/invalid_images', shard_name_template='', file_name_suffix='.jsonl')
+        )
+        
+        (main_invalid_records 
+         | 'Map the invalid main message' >> beam.Map(addInvalidationReason)
+        #  | 'Print tags' >> beam.Map(print)
+         |'Write invalid main images' >> beam.io.WriteToText('./invalids/invalid_main_images', shard_name_template='', file_name_suffix='.jsonl')
+        )
 
         image_with_tags = ({'left':image_valid_records,'right':tags_valid_records}
                           | 'Group by Image' >> beam.CoGroupByKey()#lambda x: [{**x[1]['image'][1] ,**x[1]['tags'][0] } if x[1]['image'] and x[1]['tags'] else {} ])
@@ -217,7 +245,6 @@ def run():
                         #   | 'Print' >> beam.Map(print)
         )
 
-        main_images_snapshot | 'Write snapshot' >> beam.io.WriteToText('./snapshot/snapshot', shard_name_template='', file_name_suffix='.jsonl')
 
         metrics = ({'left':main_valid_records,'right':main_images_snapshot}
                           | 'Group by hotels and image for metrics' >> beam.CoGroupByKey()
@@ -230,10 +257,12 @@ def run():
                         #   | 'Calculate CDC' >> beam.ParDo(ChangeDataCapture())
                         #   | 'Print' >> beam.Map(print)
         )
+        main_images_snapshot | 'Write snapshot' >> beam.io.WriteToText('./snapshot/snapshot', shard_name_template='', file_name_suffix='.jsonl')
+
         no_of_images = (image_valid_records
                                 # 
                                 | 'No of Images' >> beam.combiners.Count.Globally()
-                                | 'Extract Image Id' >> beam.Map(lambda x: ('Number of images processed',x))
+                                | 'Extract Image Id' >> beam.Map(lambda x: ('no_of_img_prc',x))
                                 # | 'Print no hotel_w_images' >> beam.Map(print)
         )
 
@@ -241,7 +270,7 @@ def run():
                                 | 'Get Hotels' >> beam.Map(lambda x: x[1]['hotel_id'])
                                 |'Distinct Hotels'>> beam.Distinct()
                                 | 'No of Hotels' >> beam.combiners.Count.Globally()
-                                | 'Extract Hotels Id' >> beam.Map(lambda x: ('Number of hotels with images',x))
+                                | 'Extract Hotels Id' >> beam.Map(lambda x: ('no_of_hotel_prc',x))
 
         )
 
