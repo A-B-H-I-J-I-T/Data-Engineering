@@ -81,6 +81,8 @@ def merge_image_n_tags(kv_pair):
 #             merged_record = {**left[0], **right[0]}  # Merge dictionaries
 #             return merged_record
 
+
+
 def create_kv_pair(element):
     if 'value' in element.keys():
         key = (element['key']['hotel_id'], element['value']['image_id'])
@@ -88,34 +90,49 @@ def create_kv_pair(element):
         key = (element['key']['hotel_id'], None)
     return (key, element)
 
-class ChangeDataCapture(beam.DoFn):
-    def __init__(self):
-        self.newly = 0
-        self.updtd = 0
-        self.deleted = 0
+def changeDataCapture(grpd_hotels):
+    # errors = sorted(self.validator.iter_errors(element), key=lambda e: e.path)
+    # print([error.message for error in errors])
+    if not bool(grpd_hotels[1]['left']) and bool(grpd_hotels[1]['right']):
+        return ('newly', grpd_hotels[1]['right'][0] )
+    elif not bool(grpd_hotels[1]['right']) and bool(grpd_hotels[1]['left']):
+        return_deleted = grpd_hotels[1]['left'][0]
+        return_deleted['value'] = {}
+        return ('deleted', return_deleted )
+    elif  bool(grpd_hotels[1]['left']) and bool(grpd_hotels[1]['right']):
+        if grpd_hotels[1]['left'][0]['value']['image_id'] != grpd_hotels[1]['right'][0]['value']['image_id']:
+                return ('updated', grpd_hotels[1]['right'][0])
+        if grpd_hotels[1]['left'][0]['value']['image_id'] == grpd_hotels[1]['right'][0]['value']['image_id']:
+                return ('nochange', grpd_hotels[1]['right'][0] )
 
-    def process(self, grpd_hotels):
-        # errors = sorted(self.validator.iter_errors(element), key=lambda e: e.path)
-        # print([error.message for error in errors])
-        if not bool(grpd_hotels[1]['left']) and bool(grpd_hotels[1]['right']):
-            self.newly += 1
-        elif not bool(grpd_hotels[1]['right']) and bool(grpd_hotels[1]['left']):
-            self.deleted += 1
-        elif  bool(grpd_hotels[1]['left']) and bool(grpd_hotels[1]['right']):
-            if grpd_hotels[1]['left'][0]['value']['image_id'] != grpd_hotels[1]['right'][0]['value']['image_id']:
-                 self.updtd += 1
+# class ChangeDataCapture(beam.DoFn):
+#     def __init__(self):
+#         self.newly = 0
+#         self.updtd = 0
+#         self.deleted = 0
 
-    def cdc(self):
-        yield  {
-        'Number of images processed': 0,
-        'Number of hotels with images':0,
-        'Number of main images': {
-            'Newly elected' : self.newly,
-            'Updated': self.updtd,
-            'Deleted': self.deleted
+#     def process(self, grpd_hotels):
+#         # errors = sorted(self.validator.iter_errors(element), key=lambda e: e.path)
+#         # print([error.message for error in errors])
+#         if not bool(grpd_hotels[1]['left']) and bool(grpd_hotels[1]['right']):
+#             self.newly += 1
+#         elif not bool(grpd_hotels[1]['right']) and bool(grpd_hotels[1]['left']):
+#             self.deleted += 1
+#         elif  bool(grpd_hotels[1]['left']) and bool(grpd_hotels[1]['right']):
+#             if grpd_hotels[1]['left'][0]['value']['image_id'] != grpd_hotels[1]['right'][0]['value']['image_id']:
+#                  self.updtd += 1
 
-        }
-        }
+#     def cdc(self):
+#         yield  {
+#         'Number of images processed': 0,
+#         'Number of hotels with images':0,
+#         'Number of main images': {
+#             'Newly elected' : self.newly,
+#             'Updated': self.updtd,
+#             'Deleted': self.deleted
+
+#         }
+#         }
 
 def run():
     image_tags = ['./data/image_tags.jsonl']  # List of your JSONL files
@@ -162,16 +179,35 @@ def run():
                           |  'Get main image' >> beam.ParDo(GetNewMainImage())
                           | 'new_main_image to tuple' >> beam.Map( lambda x:(x['key']['hotel_id'],x))
                         #   | 'new_main_image to tuple' >> beam.Map(create_kv_pair)
-                        #   | 'Print' >> beam.Map(print)
+                        #   | 'Print Snapshot' >> beam.Map(print)
         )
 
         cdc = ({'left':main_valid_records,'right':main_images_snapshot}
                           | 'Group by hotels and image' >> beam.CoGroupByKey()
-                          | 'Calculate CDC' >> beam.ParDo(ChangeDataCapture())
+                          | 'Create the delta keys' >> beam.Map(changeDataCapture)
+                          | 'CDC ' >> beam.Map(lambda x: x [1] if x[0]!='nochange' else None )
+                          | 'Write CDC' >> beam.io.WriteToText('./cdc/cdc', shard_name_template='', file_name_suffix='.jsonl')
+                        #   | 'Calculate CDC' >> beam.combiners.Count.PerElement()
+                        #   | 'Calculate CDC' >> beam.ParDo(ChangeDataCapture())
+                        #   | 'Print' >> beam.Map(print)
+        )
+
+        metrics = ({'left':main_valid_records,'right':main_images_snapshot}
+                          | 'Group by hotels and image' >> beam.CoGroupByKey()
+                          | 'Create the delta keys' >> beam.Map(changeDataCapture)
+                          | 'CDC ' >> beam.Map(lambda x: x [1] if x[0]!='nochange' else None )
+                        #   | 'Write CDC' >> beam.io.WriteToText('./cdc/cdc', shard_name_template='', file_name_suffix='.jsonl')
+                        #   | 'Calculate CDC' >> beam.combiners.Count.PerElement()
+                        #   | 'Calculate CDC' >> beam.ParDo(ChangeDataCapture())
                           | 'Print' >> beam.Map(print)
         )
 
+        # no_hotel_w_images = (main_images_snapshot 
+        #                   | 'Count  new of snapshot' >> beam.combiners.Count.Globally()
+        #                 #   | 'Print no hotel_w_images' >> beam.Map(print)
+        #                   )
 
+        # print(object(hotel_w_images))
 
         # score_image(image_with_tags)
         # before this you can deduplicate the record join the tags for image scoring
