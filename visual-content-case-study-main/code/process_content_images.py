@@ -202,6 +202,7 @@ def run():
         main_images_snapshot = (Images_gb_hotel
                           |  'Get main image' >> beam.ParDo(GetNewMainImage())
                           | 'new_main_image to tuple' >> beam.Map( lambda x:(x['key']['hotel_id'],x))
+                        #   | 'Write snapshot' >> beam.io.WriteToText('./snapshot/snapshot', shard_name_template='', file_name_suffix='.jsonl')
                         #   | 'new_main_image to tuple' >> beam.Map(create_kv_pair)
                         #   | 'Print Snapshot' >> beam.Map(print)
         )
@@ -210,11 +211,13 @@ def run():
                           | 'Group by hotels and image' >> beam.CoGroupByKey()
                           | 'Create the delta keys' >> beam.Map(changeDataCapture)
                           | 'CDC ' >> beam.Map(lambda x: x [1] )
-                        #   | 'Write CDC' >> beam.io.WriteToText('./cdc/cdc', shard_name_template='', file_name_suffix='.jsonl')
+                          | 'Write CDC' >> beam.io.WriteToText('./cdc/cdc', shard_name_template='', file_name_suffix='.jsonl')
                         #   | 'Calculate CDC' >> beam.combiners.Count.PerElement()
                         #   | 'Calculate CDC' >> beam.ParDo(ChangeDataCapture())
                         #   | 'Print' >> beam.Map(print)
         )
+
+        main_images_snapshot | 'Write snapshot' >> beam.io.WriteToText('./snapshot/snapshot', shard_name_template='', file_name_suffix='.jsonl')
 
         metrics = ({'left':main_valid_records,'right':main_images_snapshot}
                           | 'Group by hotels and image for metrics' >> beam.CoGroupByKey()
