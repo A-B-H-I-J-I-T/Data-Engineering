@@ -1,6 +1,6 @@
 .PHONY: run
 run:
-	python ./code/process_content_images.py
+	python ./code/process_content_images.py 
 
 
 .PHONY: test

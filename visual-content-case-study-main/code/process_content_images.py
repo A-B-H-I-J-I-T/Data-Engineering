@@ -1,6 +1,7 @@
 import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions
 import json
+import argparse
 # from jsonschema import validate, ValidationError
 from jsonschema import  Draft7Validator, FormatChecker,ValidationError
 from select_main_image import GetNewMainImage
@@ -167,9 +168,19 @@ def addInvalidationReason(invalid_records):
     return invalid_dict
 
 def run():
-    image_tags = ['./data/image_tags.jsonl']  # List of your JSONL files
-    images = ['./data/images.jsonl'] 
-    main_images = ['./data/main_images.jsonl'] 
+
+    parser = argparse.ArgumentParser(description='Select and aggregate metrics for main images')
+    parser.add_argument('--images', type=str, required=False,default = './data/images.jsonl', help='Local filesystem path to the JSONL file containing the images.')
+    parser.add_argument('--tags', type=str, required=False, default='./data/image_tags.jsonl', help='Local filesystem path to the JSONL file containing the image tags.')
+    parser.add_argument('--main_images', type=str, required=False,default='./data/main_images.jsonl', help='Local filesystem path to the JSONL file containing the existing main images.')
+    parser.add_argument('--output_cdc', type=str, required=False,default='./cdc/cdc', help='Local filesystem path to write JSONL file(s) containing the changes.')
+    parser.add_argument('--output_snapshot', type=str, required=False,default='./snapshot/snapshot', help='Local filesystem path to write JSONL file(s) containing the snapshot of the pipeline run.')
+    parser.add_argument('--output_metrics', type=str, required=False,default='./metrics/metrics', help='Local filesystem path to a single JSONL file to write the metrics of the pipeline.')
+    args = parser.parse_args()
+
+    image_tags = [args.tags]  # List of your JSONL files
+    images = [args.images] 
+    main_images = [args.main_images] 
     tags_schema = ReadSchema('./schemas/image_tags.json')
     image_schema = ReadSchema('./schemas/image.json')
     main_schema = ReadSchema('./schemas/main_image.json')
@@ -239,7 +250,7 @@ def run():
                           | 'Group by hotels and image' >> beam.CoGroupByKey()
                           | 'Create the delta keys' >> beam.Map(changeDataCapture)
                           | 'CDC ' >> beam.Map(lambda x: x [1] )
-                          | 'Write CDC' >> beam.io.WriteToText('./cdc/cdc', shard_name_template='', file_name_suffix='.jsonl')
+                          | 'Write CDC' >> beam.io.WriteToText(args.output_cdc, shard_name_template='', file_name_suffix='.jsonl')
                         #   | 'Calculate CDC' >> beam.combiners.Count.PerElement()
                         #   | 'Calculate CDC' >> beam.ParDo(ChangeDataCapture())
                         #   | 'Print' >> beam.Map(print)
@@ -257,7 +268,7 @@ def run():
                         #   | 'Calculate CDC' >> beam.ParDo(ChangeDataCapture())
                         #   | 'Print' >> beam.Map(print)
         )
-        main_images_snapshot | 'Write snapshot' >> beam.io.WriteToText('./snapshot/snapshot', shard_name_template='', file_name_suffix='.jsonl')
+        main_images_snapshot | 'Write snapshot' >> beam.io.WriteToText(args.output_snapshot, shard_name_template='', file_name_suffix='.jsonl')
 
         no_of_images = (image_valid_records
                                 # 
@@ -279,7 +290,7 @@ def run():
                        | 'CollectTuples' >> beam.Map(lambda t: {t[0]:t[1]})
                        | 'Combine all dict' >> beam.CombineGlobally(metrics_agg_format)
                        | 'Format the metrics jsonl' >> beam.Map(format_metrics)
-                       | 'Write metrics' >> beam.io.WriteToText('./metrics/metrics', shard_name_template='', file_name_suffix='.jsonl')
+                       | 'Write metrics' >> beam.io.WriteToText(args.output_metrics, shard_name_template='', file_name_suffix='.jsonl')
                     #    | 'Print no ' >> beam.Map(print)
                        )
         
