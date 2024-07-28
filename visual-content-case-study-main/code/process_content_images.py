@@ -170,12 +170,12 @@ def addInvalidationReason(invalid_records):
 def run():
 
     parser = argparse.ArgumentParser(description='Select and aggregate metrics for main images')
-    parser.add_argument('--images', type=str, required=False,default = './data/images.jsonl', help='Local filesystem path to the JSONL file containing the images.')
-    parser.add_argument('--tags', type=str, required=False, default='./data/image_tags.jsonl', help='Local filesystem path to the JSONL file containing the image tags.')
-    parser.add_argument('--main_images', type=str, required=False,default='./data/main_images.jsonl', help='Local filesystem path to the JSONL file containing the existing main images.')
-    parser.add_argument('--output_cdc', type=str, required=False,default='./cdc/cdc', help='Local filesystem path to write JSONL file(s) containing the changes.')
-    parser.add_argument('--output_snapshot', type=str, required=False,default='./snapshot/snapshot', help='Local filesystem path to write JSONL file(s) containing the snapshot of the pipeline run.')
-    parser.add_argument('--output_metrics', type=str, required=False,default='./metrics/metrics', help='Local filesystem path to a single JSONL file to write the metrics of the pipeline.')
+    parser.add_argument('--images', type=str, required=True,default = './data/images.jsonl', help='Local filesystem path to the JSONL file containing the images.')
+    parser.add_argument('--tags', type=str, required=True, default='./data/image_tags.jsonl', help='Local filesystem path to the JSONL file containing the image tags.')
+    parser.add_argument('--main_images', type=str, required=True,default='./data/main_images.jsonl', help='Local filesystem path to the JSONL file containing the existing main images.')
+    parser.add_argument('--output_cdc', type=str, required=True,default='./cdc/cdc', help='Local filesystem path to write JSONL file(s) containing the changes.')
+    parser.add_argument('--output_snapshot', type=str, required=True,default='./snapshot/snapshot', help='Local filesystem path to write JSONL file(s) containing the snapshot of the pipeline run.')
+    parser.add_argument('--output_metrics', type=str, required=True,default='./metrics/metrics', help='Local filesystem path to a single JSONL file to write the metrics of the pipeline.')
     args = parser.parse_args()
 
     image_tags = [args.tags]  # List of your JSONL files
